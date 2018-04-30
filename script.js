@@ -1,46 +1,56 @@
-function(context, args) // loc:loc
+function(context, args)
 {
 	var lib = #fs.scripts.lib();
 
 	if (!args || !args.loc) {
 		return "Specify a loc";
 	}
-	// var keys = ["c001", "c002", "c003", "ez_21", "ez_35", "digit"];
 
 	var loc = args.loc;
 	var data = {};
 	var response = loc.call(data);
-	return response.includes("ATION::: hardl");
+	if (response.msg.includes("script doesn't exist")) {
+		return {ok: false, msg: response.msg};
+	}
+
 	while(true) {
 		var key = determine_key(response);
 		var sol = solve_key(loc, data, key);
-		if (sol.done) {
-			return {}
+		if (sol.solved) {
+			return {ok: true}
+		}
+		if (sol.failed) {
+			return {ok: false}
 		}
 
 		data[key] = sol.value;
 		response = sol.response;
 	}
 
-	// var data = {};
-	// var key = null;
-	// if (key == null) {
-	// 	if(response.includes("c003")) {
+	function determine_key(response) {
+		var uppercase = response.toUpperCase();
+		// Denied access by HALPERYON SYSTEMS EZ_21 lock.
+		ez_index = uppercase.indexOf("EZ_");
+		if (ez_index > 0) {
+			return {
+				label: response.substr(ez_index, 5),
+				type: "EZ"
+			}
+		}
 
-	// 	}
-	// }
+		// Denied access by CORE c003 lock.
+		c00_index = uppercase.indexOf("C00");
+		if (c00_index > 0) {
+			return {
+				label: response.substr(c00_index, 5),
+				type: "C00"
+			}
+		}
+	}
 
-	// function colors(key) {
-
-	// }
-
-	// var locks = {
-	// 	"c00": colors,
-	// }
-	// if (response.includes("c003")) {
-	// 	colors("c003");
-	// }
-	// // l.log("log")
-	// // // return l.get_security_level_name(l);
-	// return {ok:true}
+	function solve_key() {
+		return {
+			solved: true
+		}
+	}
 }
