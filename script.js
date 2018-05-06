@@ -1,56 +1,39 @@
 function(context, args)
 {
-	var lib = #fs.scripts.lib();
-
-	if (!args || !args.loc) {
-		return "Specify a loc";
-	}
-
 	var loc = args.loc;
-	var data = {};
-	var response = loc.call(data);
-	if (response.msg.includes("script doesn't exist")) {
-		return {ok: false, msg: response.msg};
-	}
+	var key;
+	var sofar = {};
+	var vals;
+	var responses = {};
+	for(var tries=0;tries<5;tries++) {
+		if (key && key[0] == "`") key = key.substring(2, key.length-1);
+		if (!key) vals = [0];
+		else if (key.includes("prime")) vals = [2,3,5,7,11,13,17,19,23,29,31,37,41,43,47,53,59,61,67,71,73,79,83,89,97];
+		else if (key.includes("c00")) vals = ["red","orange","yellow","green","lime","blue","cyan","purple"];
+		else if (key.includes("digit")) vals = [0,1,2,3,4,5,6,7,8,9];
+		else if (key.includes("l0cket")) vals =  ["6hh8xw","cmppiq","sa23uw","tvfkyq","uphlaw","vc2c7q","xwz7ja"];
+		else vals = ["open", "unlock", "release"];
 
-	while(true) {
-		var key = determine_key(response);
-		var sol = solve_key(loc, data, key);
-		if (sol.solved) {
-			return {ok: true}
-		}
-		if (sol.failed) {
-			return {ok: false}
-		}
-
-		data[key] = sol.value;
-		response = sol.response;
-	}
-
-	function determine_key(response) {
-		var uppercase = response.toUpperCase();
-		// Denied access by HALPERYON SYSTEMS EZ_21 lock.
-		ez_index = uppercase.indexOf("EZ_");
-		if (ez_index > 0) {
-			return {
-				label: response.substr(ez_index, 5),
-				type: "EZ"
+		for (var v of vals) {
+			if (key) sofar[key] = v;
+			var response = loc.call(sofar);
+			responses[JSON.stringify(sofar)] = response;
+			var s = response.split(" ");
+			var m = s.indexOf("missing.");
+			if (m > 0) {
+				// correct, another lock
+				key = s[m-2];
+				break;
+			} else if (s[s.length-1] == "lock.") {
+				// another lock
+				key = s[s.length-2];
+				break;
+			} else {
+				if (!(s.includes("correct"))) // fully unlocked?
+					return response;
 			}
-		}
-
-		// Denied access by CORE c003 lock.
-		c00_index = uppercase.indexOf("C00");
-		if (c00_index > 0) {
-			return {
-				label: response.substr(c00_index, 5),
-				type: "C00"
-			}
+			// keep trying more vals
 		}
 	}
-
-	function solve_key() {
-		return {
-			solved: true
-		}
-	}
+	return JSON.stringify(responses);
 }
