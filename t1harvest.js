@@ -4,15 +4,19 @@ function(context, args)
 
   var locset = new Set()
   for(var i = 0; i < 10 && locset.size < 20; i++) {
+    // return harvestFrom(corp)
     for (var loc of harvestFrom(corp))
+      // return loc
       locset.add(loc)
   }
 
+  // if (!locset.size) return {ok: false}
   var locs = Array.from(locset.values())
+  // return locs
   if (!locs) return {ok: false}
 
   var i = 0;
-  return "max.t1{"+locs.map(loc => (i++) + ":#s." + loc).join(",\n")+"}"
+  return "max.t1crack{"+locs.map(loc => (i++) + ":#s." + loc).join(",\n")+"}"
 
   function harvestFrom(corp) {
     var corruption = /[¡¢Á¤Ã¦§¨©ª<>]/
@@ -22,7 +26,7 @@ function(context, args)
       var key = / with ([^:]*):/.exec(c1)[1]
       var dir = /with [^:]*:"([^<" ]*)"/.exec(c1)[1]
     } catch(e) {
-    	return []
+      return []
     }
 
     try{
@@ -61,7 +65,7 @@ function(context, args)
 
     var passkey;
     for (passkey of ["p","pass","password"]) {
-    	if (/Incorrect/.exec(corp.call({[key]: dir, [passkey]:"."}))) break;
+      if (/Incorrect/.exec(corp.call({[key]: dir, [passkey]:"."}))) break;
     }
 
     var locs = []
