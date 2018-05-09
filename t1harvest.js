@@ -4,15 +4,11 @@ function(context, args)
 
   var locset = new Set()
   for(var i = 0; i < 10 && locset.size < 20; i++) {
-    // return harvestFrom(corp)
     for (var loc of harvestFrom(corp))
-      // return loc
       locset.add(loc)
   }
 
-  // if (!locset.size) return {ok: false}
   var locs = Array.from(locset.values())
-  // return locs
   if (!locs) return {ok: false}
 
   var i = 0;
