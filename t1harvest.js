@@ -3,7 +3,7 @@ function(context, args)
   var corp = args.corp
 
   var locset = new Set()
-  for(var i = 0; i < 10 && locset.size < 20; i++) {
+  for(var i = 0; i < 10; i++) {
     for (var loc of harvestFrom(corp))
       locset.add(loc)
   }
@@ -11,8 +11,12 @@ function(context, args)
   var locs = Array.from(locset.values())
   if (!locs) return {ok: false}
 
-  var i = 0;
-  return "max.t1crack{"+locs.map(loc => (i++) + ":#s." + loc).join(",\n")+"}"
+  var ret = "";
+  for (var i = 0; i <= locs.length; i+=50) {
+    var j = 0;
+    ret += "\n\nmax.t1crack{"+locs.slice(i,i+50).map(loc => (j++) + ":#s." + loc).join(",\n")+"}\n\n"
+  }
+  return ret
 
   function harvestFrom(corp) {
     var corruption = /[¡¢Á¤Ã¦§¨©ª<>]/
