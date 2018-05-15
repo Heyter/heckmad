@@ -152,6 +152,7 @@ function(context, args)
         continue
       } else {
         // correct?
+        magnara_dictionary[sorted] = guess
         #db.i({type:"magnara", sorted:sorted, answer:guess})
         return
       }
