@@ -12,8 +12,9 @@ function(context, args)
 
   var magnara_dictionary  // will be loaded & cached when needed
   var sofar = {}
-  var response = call(sofar)
+  var response
   var seen_types = new Set()
+  call(sofar)
 
   while (can_continue()) {
     let type = get_type()
@@ -50,23 +51,10 @@ function(context, args)
   function get_type() {
     let lowercase = response.toLowerCase()
     for (let maybe_type of Object.keys(solvers)) {
-      if (lowercase.includes(maybe_type) && !(maybe_type in seen_types)) {
+      if (lowercase.includes(maybe_type) && !(seen_types.has(maybe_type))) {
         return maybe_type
       }
     }
-
-    // if (response.includes("con_spec") && !("con_spec" in seen_types)) {
-    //   return "con_spec"
-    // }
-    // if (response.includes("magnara")) {
-    //   return "magnara"
-    // }
-    // if (response.includes("sn_w_glock")) {
-    //   return "glock"
-    // }
-    // if (response.includes("acct_nt")) {
-    //   return "acct_nt"
-    // }
 
     return "failure"
   }
@@ -94,7 +82,7 @@ function(context, args)
       answerCode.push(nextCode)
       currCode = nextCode
     }
-    let answer = answerCode.map(c => String.fromCharCode(c))
+    let answer = answerCode.map(c => String.fromCharCode(c)).join("")
     sofar["CON_SPEC"] = answer
     call()
   }
@@ -102,7 +90,7 @@ function(context, args)
   function magnara() {
     if (!magnara_dictionary) {
       magnara_dictionary = {}
-      let query_result = #db.f({type:"magnara"})
+      let query_result = #db.f({type:"magnara"}).array()
       query_result.forEach(function(result) {
         magnara_dictionary[result.sorted] = result.answer
       })
