@@ -1,9 +1,9 @@
 function(context, args)
 {
+  var started_ms = (new Date()).getTime()
   function log(str) {
-    return #D(str)
+    return #D("`F[" + ((new Date()).getTime() - started_ms) + "]` "+str)
   }
-
 
   var lib = #fs.scripts.lib()
   var solvers = {
@@ -14,6 +14,8 @@ function(context, args)
   }
 
   var t = args.t || args.target
+  log("")
+  log("`Wtarget: "+t.name+"`")
   var alt = args.alt || "stegosaurus"
 
   let con_spec_wolf = function(c, a) {
@@ -27,6 +29,7 @@ function(context, args)
     acct_nt: 0,
     magnara: "okay",
   }
+  var guesses_tried = {"acct_nt": new Set([0]), "magnara": new Set()}
 
   let balance = #hs.accts.balance()
   if (balance) #ms.accts.xfer_gc_to({to: alt, amount: balance})
@@ -40,25 +43,21 @@ function(context, args)
     log("type = " + type)
     if (type == "success") return {ok:true}
     if (type == "failure" || !(type in solvers)) {
-      log("not in solvers")
-      return log({ok:false, msg:[data, response]})
+      return {ok:false, msg:[data, response]}
     }
 
-    // try {
     solvers[type]()
-    // } catch (e) {
-
-    // }
 
     if (response == prev_response) {
-      return log({ok:false, msg:"Failed to make progress."})
+      log("Failed to make progress.")
+      return {ok:false, msg:"Failed to make progress."}
     }
   }
-
-  return log({ok:false, msg:"Ran out of time. " + JSON.stringify(data) + "\n" + response})
+  log("`AOUT OF TIME!`")
+  return {ok:false, msg:"Ran out of time."}
 
   function can_continue() {
-    return lib.can_continue_execution(800)
+    return lib.can_continue_execution(500)
   }
 
   function last(list) {
@@ -67,7 +66,7 @@ function(context, args)
 
   function call() {
     let attempt_str = data.acct_nt
-    log(data)
+    log(JSON.stringify(data))
     prev_response = response
     let resp = t.call(data)
     try {
@@ -83,10 +82,14 @@ function(context, args)
 
   function get_type() {
     let parse_map = {
+      // Need to know the total earned on transactions without memos between 180521.0207 and 180521.0241
+
       "GC between": "acct_nt",
       "total spent": "acct_nt",
+      "total earned": "acct_nt",
       "large deposit": "acct_nt",
       "large withdrawal": "acct_nt",
+      "Need to know": "acct_nt",
       "three letters": "con_spec",
       "Connection terminated.": "success",
       "recinroct": "magnara",
@@ -102,9 +105,16 @@ function(context, args)
   }
 
   function guess(key, val) {
+    if (guesses_tried[key].has(val)) return false
+    guesses_tried[key].add(val)
+
     data[key] = val
     call()
-    return response != prev_response
+    if (response.substr(0,10) != prev_response.substr(0,10)) {
+      // log("This looks like a correct guess because \n\n`R" + response + "`\n != \n`D" + prev_response + "`\n\n")
+      return true
+    }
+    return false
   }
 
   function con_spec() {
@@ -206,83 +216,100 @@ function(context, args)
       return
     }
 
-    // log("amount:"+amount)
     #fs.stegosaurus.give({amount: amount})
     call()
   }
 
   function acct_nt() {
-    let trans_args = {count: 30}
+    let trans_args = {count: 50}
     if (response.includes("receive")) trans_args["to"] = context.caller
     if (response.includes("withdraw")) trans_args["from"] = context.caller
 
     let transactions = #hs.accts.transactions(trans_args)
 
-    log("near/between?", response.includes("near"))
-    if (response.includes("near")) acct_nt_near(transactions)
-    else acct_nt_between(transactions)
+    if (response.includes("near")) {
+      acct_nt_near(transactions)
+    } else {
+      let possible_types = [[1,1], [1,-1], [-1, 1], [1, 0], [0, 1]]
+      possible_types = lib.shuffle(possible_types)
+
+      for (let i = 0; i < possible_types.length; i++) {
+        guess("acct_nt", 0)
+        if (acct_nt_between(transactions, possible_types[i][0], possible_types[i][1])) {
+          return
+        }
+      }
+    }
   }
-  function acct_nt_between(transactions) {
-    log("acct_nt_between")
+
+  function acct_nt_between(transactions, in_times, out_times) {
+    log("`Ytrying with " + in_times + " and " + out_times+"`")
     let skip_memos = !!(/without memo/.exec(response))
-    let do_inverse = !!(/spent/.exec(response))
-    let net = !!(/ net /.exec(response))
 
     let match = /([0-9]+\.[0-9]+) and ([0-9]+\.[0-9]+)/.exec(response)
     let start_time = match[1], end_time = match[2]
     let curr_sum = 0, sum_table = [0]
 
-    // let start_idx_hi = 0, end_idx
-    // filter, create sum table, find possibles
-    // let filtered_trans = []
     for (let transaction of transactions) {
-      // log(transaction)
       if (skip_memos && transaction.memo) {
-        // log("skip memo");
         continue
       }
 
       let time = lib.to_game_timestr(transaction.time)
-      // if (time > end_time) { log("too early"); continue }
-      // if (start_idx_hi == 0) {
-      //   start_idx_hi = sum_table.length
-      // }
-      // if (time == end_time) {
-        // log("exact end time")
-      //   let curr_idx = filtered_trans.length
-      //   start_idx_hi = curr_idx
-      // }
-      // if (time <= start_time) { log("too late"); break }
+      if (time > end_time) continue
+      if (time < start_time) break
+
+      // normaly ignore time==start_time but make an exception when start & end are the same
+      if (time == start_time && start_time != end_time) break
 
       let curr_amount = transaction.amount
-      // negate if withdrawal
-      if (net && transaction.sender == context.caller) curr_amount *= -1
+
+      // negate if withdrawal?
+      if (transaction.sender == context.caller) {
+        curr_amount *= out_times
+      } else {
+        curr_amount *= in_times
+      }
 
       curr_sum += curr_amount
       sum_table.push(curr_sum)
-      // filtered_trans.push(transaction)
     }
-    // log("sum_table:" + JSON.stringify(sum_table))
+
+    if (start_time == end_time) {
+      // TODO: optimize this case
+      for (let i1 = 0; i1 < sum_table.length; i1++) {
+        for (let i2 = i1 + 1; i2 < sum_table.length; i2++) {
+          if (!can_continue()) return true
+            let to_guess = sum_table[i2] - sum_table[i1]
+            // if (to_guess in acct_nt_tried) continue
+            // acct_nt_tried[to_guess] = true
+
+            if (guess("acct_nt", to_guess)) {
+              log("`Asolved acct_nt ``L" + prev_response + "``A, in=``Y"+in_times+"``A, out=``Y"+out_times+"`")
+              return true
+            }
+        }
+      }
+      return false
+    }
+
 
     let end_sum = last(sum_table)
-    // log("end sum = "+end_sum)
     for (let start_idx = 0; start_idx < sum_table.length; start_idx++) {
-      if (!can_continue()) return
-      log("try start_idx = " + start_idx + ", sum_table[start_idx] = " + sum_table[start_idx])
+      if (!can_continue()) return true
+      // log("try start_idx = " + start_idx + ", sum_table[start_idx] = " + sum_table[start_idx])
       let to_guess = end_sum - sum_table[start_idx]
-      // data["acct_nt"] = guess
-      // call()
-      // if (response != prev_response) return
+      // if (to_guess in acct_nt_tried) continue
+      // acct_nt_tried[to_guess] = true
 
-      if (guess("acct_nt", to_guess)) return
-      if (guess("acct_nt", -1 * to_guess)) return
-      // data["acct_nt"] = -1 * guess
-      // call()
-      // if (response != prev_response) return
+      if (guess("acct_nt", to_guess)) {
+        log("`Asolved acct_nt ``L" + prev_response + "``A, in=``Y"+in_times+"``A, out=``Y"+out_times+"`")
+        return true
+      }
     }
+    return false
   }
   function acct_nt_near(transactions) {
-    log("acct_nt_near")
     let match = /near ([0-9]+\.[0-9]+)/.exec(response)
     let near_time = match[1]
 
@@ -299,13 +326,11 @@ function(context, args)
 
 
     for (let d = 1; d < transactions.length; d++) {
-      let lo = i - d
-      let hi = i + d
+      if (!can_continue()) return
+      let lo = start_index - d
+      let hi = start_index + d
       if (lo >= 0 && guess("acct_nt", transactions[lo].amount)) return
       if (hi < transactions.length && guess("acct_nt", transactions[hi].amount)) return
     }
-
-    // data["acct_nt"] = total
-    // call()
   }
 }
